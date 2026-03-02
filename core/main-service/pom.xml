@@ -4,9 +4,9 @@
 
     <modelVersion>4.0.0</modelVersion>
     <groupId>ru.practicum.ewm</groupId>
-    <artifactId>main-service</artifactId>
+    <artifactId>core</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>ewm-service</name>
+    <name>main-service</name>
 
     <properties>
         <java.version>21</java.version>
