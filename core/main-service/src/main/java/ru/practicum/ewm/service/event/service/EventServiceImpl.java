@@ -23,8 +23,7 @@ import ru.practicum.ewm.stats.client.StatsClient;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
-import java.util.Comparator;
-import java.util.List;
+import java.util.*;
 
 import static ru.practicum.ewm.service.event.model.EventState.PUBLISHED;
 
@@ -92,11 +91,13 @@ public class EventServiceImpl implements EventService {
         statsClient.hit(uri, ip);
 
         if ("VIEWS".equalsIgnoreCase(sort)) {
-            // сортировка по просмотрам делается в памяти
+            // сортировка по просмотрам делается в памяти, но статистику берём одним батч-запросом
             List<Event> all = eventRepository.findAll(spec);
+            Map<Long, Long> viewsById = loadViewsByEventIds(all);
+
             List<Event> sorted = all.stream()
                     .sorted(Comparator
-                            .comparingLong((Event e) -> statsClient.viewsForEvent(e.getId()))
+                            .comparingLong((Event e) -> viewsById.getOrDefault(e.getId(), 0L))
                             .reversed())
                     .toList();
 
@@ -104,11 +105,12 @@ public class EventServiceImpl implements EventService {
             int size = pageable.getPageSize();
 
             return sorted.stream()
-                    .skip(from).limit(size)
+                    .skip(from)
+                    .limit(size)
                     .map(e -> EventMapper.toShortDto(
                             e,
                             requestRepository.countByEventIdAndStatus(e.getId(), RequestStatus.CONFIRMED),
-                            statsClient.viewsForEvent(e.getId())))
+                            viewsById.getOrDefault(e.getId(), 0L)))
                     .toList();
         } else {
             // по умолчанию сортируем по EVENT_DATE
@@ -118,11 +120,15 @@ public class EventServiceImpl implements EventService {
                             pageable.getPageSize(),
                             Sort.by("eventDate").ascending())
             );
-            return page.getContent().stream()
+
+            List<Event> content = page.getContent();
+            Map<Long, Long> viewsById = loadViewsByEventIds(content);
+
+            return content.stream()
                     .map(e -> EventMapper.toShortDto(
                             e,
                             requestRepository.countByEventIdAndStatus(e.getId(), RequestStatus.CONFIRMED),
-                            statsClient.viewsForEvent(e.getId())))
+                            viewsById.getOrDefault(e.getId(), 0L)))
                     .toList();
         }
     }
@@ -156,6 +162,8 @@ public class EventServiceImpl implements EventService {
                 .sorted(Comparator.comparing(Event::getCreatedOn).reversed())
                 .toList();
 
+        Map<Long, Long> viewsById = loadViewsByEventIds(events);
+
         int from = (int) pageable.getOffset();
         int size = pageable.getPageSize();
 
@@ -165,7 +173,7 @@ public class EventServiceImpl implements EventService {
                 .map(e -> EventMapper.toShortDto(
                         e,
                         requestRepository.countByEventIdAndStatus(e.getId(), RequestStatus.CONFIRMED),
-                        statsClient.viewsForEvent(e.getId())))
+                        viewsById.getOrDefault(e.getId(), 0L)))
                 .toList();
     }
 
@@ -311,6 +319,8 @@ public class EventServiceImpl implements EventService {
                 .sorted(Comparator.comparing(Event::getEventDate))
                 .toList();
 
+        Map<Long, Long> viewsById = loadViewsByEventIds(all);
+
         int from = (int) pageable.getOffset();
         int size = pageable.getPageSize();
 
@@ -320,7 +330,7 @@ public class EventServiceImpl implements EventService {
                 .map(e -> EventMapper.toFullDto(
                         e,
                         requestRepository.countByEventIdAndStatus(e.getId(), RequestStatus.CONFIRMED),
-                        statsClient.viewsForEvent(e.getId())))
+                        viewsById.getOrDefault(e.getId(), 0L)))
                 .toList();
     }
 
@@ -421,5 +431,23 @@ public class EventServiceImpl implements EventService {
         if (start != null && end != null && end.isBefore(start)) {
             throw new IllegalArgumentException("rangeEnd must be after rangeStart");
         }
+    }
+
+    private Map<Long, Long> loadViewsByEventIds(List<Event> events) {
+        if (events == null || events.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        Map<String, Long> viewsByUri = statsClient.viewsForUris(
+                events.stream().map(e -> "/events/" + e.getId()).toList(),
+                true
+        );
+
+        Map<Long, Long> result = new HashMap<>();
+        for (Event event : events) {
+            String uri = "/events/" + event.getId();
+            result.put(event.getId(), viewsByUri.getOrDefault(uri, 0L));
+        }
+        return result;
     }
 }

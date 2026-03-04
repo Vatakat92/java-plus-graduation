@@ -18,6 +18,7 @@ import java.net.URI;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Slf4j
 public class StatsClient {
@@ -100,20 +101,47 @@ public class StatsClient {
     }
 
     public long viewsForUri(@NonNull String uri, boolean unique) {
+        return viewsForUris(List.of(uri), unique).getOrDefault(uri.trim(), 0L);
+    }
+
+    public Map<String, Long> viewsForUris(@NonNull List<String> uris, boolean unique) {
+        if (uris.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        List<String> normalized = uris.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .distinct()
+                .toList();
+
+        if (normalized.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
         try {
             List<ViewStatsDto> list = stats(
                     LocalDateTime.of(2000, 1, 1, 0, 0, 0),
                     LocalDateTime.now(),
-                    List.of(uri.trim()),
+                    normalized,
                     unique
             );
-            return list.stream()
-                    .filter(v -> uri.trim().equals(v.getUri()))
-                    .mapToLong(ViewStatsDto::getHits)
-                    .sum();
+
+            Map<String, Long> hits = list.stream()
+                    .collect(Collectors.groupingBy(
+                            ViewStatsDto::getUri,
+                            Collectors.summingLong(ViewStatsDto::getHits)
+                    ));
+
+            Map<String, Long> result = new HashMap<>();
+            for (String uri : normalized) {
+                result.put(uri, hits.getOrDefault(uri, 0L));
+            }
+            return result;
         } catch (Exception e) {
-            log.warn("Stats unavailable for {}: {}", uri, e.toString());
-            return 0L;
+            log.warn("Stats unavailable for uris {}: {}", normalized, e.toString());
+            return normalized.stream().collect(Collectors.toMap(u -> u, u -> 0L));
         }
     }
 
