@@ -4,13 +4,17 @@ import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.client.RestTemplateBuilder;
+import org.springframework.cloud.client.ServiceInstance;
+import org.springframework.cloud.client.discovery.DiscoveryClient;
 import org.springframework.http.ResponseEntity;
+import org.springframework.retry.support.RetryTemplate;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import ru.practicum.ewm.stats.client.props.ClientProperties;
 import ru.practicum.ewm.stats.dto.EndpointHitDto;
 import ru.practicum.ewm.stats.dto.ViewStatsDto;
 
+import java.net.URI;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -22,25 +26,32 @@ public class StatsClient {
 
     private final RestTemplate rest;
     private final ClientProperties props;
-    private final String appName; // откуда возьмём app
+    private final String appName;
+    private final DiscoveryClient discoveryClient;
+    private final RetryTemplate retryTemplate;
+    private final String statsServiceId;
 
     public StatsClient(@NonNull RestTemplateBuilder builder,
                        @NonNull ClientProperties props,
-                       @Value("${spring.application.name:ewm-service}") String appName) {
+                       @Value("${spring.application.name:ewm-service}") String appName,
+                       DiscoveryClient discoveryClient,
+                       RetryTemplate retryTemplate,
+                       @Value("${stats.service-id:stats-service}") String statsServiceId) {
         this.props = props;
         this.appName = appName;
+        this.discoveryClient = discoveryClient;
+        this.retryTemplate = retryTemplate;
+        this.statsServiceId = statsServiceId;
         this.rest = builder
-                .rootUri(props.getBaseUrl())
                 .setConnectTimeout(props.getConnectTimeout())
                 .setReadTimeout(props.getReadTimeout())
                 .build();
-        log.debug("StatsClient initialized: baseUrl={}, connectTimeout={}, readTimeout={}, hitMaxAttempts={}, hitBackoff={}ms, app={}",
-                props.getBaseUrl(), props.getConnectTimeout(), props.getReadTimeout(),
-                props.getHitMaxAttempts(), props.getHitBackoffMillis(), appName);
+        log.debug("StatsClient initialized: connectTimeout={}, readTimeout={}, hitMaxAttempts={}, hitBackoff={}ms, app={}, statsServiceId={}",
+                props.getConnectTimeout(), props.getReadTimeout(),
+                props.getHitMaxAttempts(), props.getHitBackoffMillis(), appName, statsServiceId);
     }
 
     public void hit(@NonNull String uri, @NonNull String ip) {
-        // DTO обычно имеет LocalDateTime timestamp с @JsonFormat, значит передаём LDT
         EndpointHitDto dto = new EndpointHitDto();
         dto.setApp(appName);
         dto.setUri(uri.trim());
@@ -57,8 +68,8 @@ public class StatsClient {
 
         while (true) {
             try {
-                // сервер возвращает 201 + json с записанным хит-DTO
-                rest.postForEntity("/hit", dto, EndpointHitDto.class);
+                URI uri = makeUri("/hit");
+                rest.postForEntity(uri, dto, EndpointHitDto.class);
                 log.info("Hit sent successfully: id={}, uri={}", dto.getId(), dto.getUri());
                 if (log.isTraceEnabled()) {
                     log.trace("POST /hit sent: app={}, uri={}, ip={}, ts={}",
@@ -110,8 +121,6 @@ public class StatsClient {
                                     @NonNull LocalDateTime end,
                                     List<String> uris,
                                     boolean unique) {
-        // небольшой запас, чтобы свежий /hit точно попал в выборку
-
         StringBuilder qs = new StringBuilder()
                 .append("/stats")
                 .append("?start=").append(fmt(start))
@@ -120,15 +129,41 @@ public class StatsClient {
 
         if (uris != null && !uris.isEmpty()) {
             for (String u : uris) {
-                // здесь не кодируем: сервер нормально принимает /events/7
                 qs.append("&uris=").append(u.trim());
             }
         }
 
-        // rootUri уже задан в RestTemplateBuilder, так что относительный путь ок
-        ResponseEntity<ViewStatsDto[]> resp = rest.getForEntity(qs.toString(), ViewStatsDto[].class);
-        ViewStatsDto[] body = resp.getBody();
-        return (body == null) ? Collections.emptyList() : Arrays.asList(body);
+        try {
+            URI uri = makeUri(qs.toString());
+            ResponseEntity<ViewStatsDto[]> resp = rest.getForEntity(uri, ViewStatsDto[].class);
+            ViewStatsDto[] body = resp.getBody();
+            return (body == null) ? Collections.emptyList() : Arrays.asList(body);
+        } catch (Exception e) {
+            log.warn("Failed to get stats: {}", e.toString());
+            return Collections.emptyList();
+        }
+    }
+
+    private URI makeUri(String path) {
+        ServiceInstance instance = retryTemplate.execute(cxt -> getInstance());
+        return URI.create("http://" + instance.getHost() + ":" + instance.getPort() + path);
+    }
+
+    private ServiceInstance getInstance() {
+        try {
+            return discoveryClient
+                    .getInstances(statsServiceId)
+                    .stream()
+                    .findFirst()
+                    .orElseThrow(() -> new IllegalStateException(
+                            "No instances found for service: " + statsServiceId
+                    ));
+        } catch (Exception exception) {
+            throw new RuntimeException(
+                    "Error discovering address of stats service with id: " + statsServiceId,
+                    exception
+            );
+        }
     }
 
     private void safeSleep(long millis) {
@@ -140,7 +175,6 @@ public class StatsClient {
         }
     }
 
-    // helper: "yyyy-MM-dd HH:mm:ss" -> "yyyy-MM-dd+HH:mm:ss"
     private static String fmt(LocalDateTime dt) {
         return FMT.format(dt).replace(' ', '+');
     }

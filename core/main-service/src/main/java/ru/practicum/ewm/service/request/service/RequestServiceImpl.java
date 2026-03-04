@@ -4,10 +4,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import ru.practicum.ewm.service.exception.NotFoundException;
 import ru.practicum.ewm.service.event.model.Event;
 import ru.practicum.ewm.service.event.model.EventState;
 import ru.practicum.ewm.service.event.repository.EventRepository;
+import ru.practicum.ewm.service.exception.NotFoundException;
 import ru.practicum.ewm.service.request.dto.EventRequestStatusUpdateRequest;
 import ru.practicum.ewm.service.request.dto.EventRequestStatusUpdateResult;
 import ru.practicum.ewm.service.request.dto.ParticipationRequestDto;
@@ -156,7 +156,7 @@ public class RequestServiceImpl implements RequestService {
                 .toList();
 
         List<ParticipationRequestDto> confirmed = new ArrayList<>();
-        List<ParticipationRequestDto> rejected  = new ArrayList<>();
+        List<ParticipationRequestDto> rejected = new ArrayList<>();
 
         for (var r : toUpdate) {
             if (r.getStatus() != RequestStatus.PENDING) {

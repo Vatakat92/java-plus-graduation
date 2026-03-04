@@ -4,11 +4,14 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import ru.practicum.ewm.service.category.dto.*;
+import ru.practicum.ewm.service.category.dto.CategoryDto;
+import ru.practicum.ewm.service.category.dto.NewCategoryDto;
+import ru.practicum.ewm.service.category.dto.UpdateCategoryRequest;
 import ru.practicum.ewm.service.category.mapper.CategoryMapper;
 import ru.practicum.ewm.service.category.model.Category;
 import ru.practicum.ewm.service.category.repository.CategoryRepository;
 import ru.practicum.ewm.service.exception.NotFoundException;
+
 import java.util.List;
 
 @Service
@@ -33,14 +36,14 @@ public class CategoryServiceImpl implements CategoryService {
     @Transactional
     public CategoryDto update(long id, UpdateCategoryRequest dto) {
         var c = repo.findById(id).orElseThrow(
-                ()->new NotFoundException("Category with id=" + id + " was not found"));
+                () -> new NotFoundException("Category with id=" + id + " was not found"));
         c.setName(dto.getName());
         return CategoryMapper.toDto(c);
     }
 
     @Override
     @Transactional
-    public void delete(long id){
+    public void delete(long id) {
         if (!repo.existsById(id)) {
             throw new NotFoundException("Category with id=" + id + " was not found");
         }
@@ -58,7 +61,7 @@ public class CategoryServiceImpl implements CategoryService {
     public CategoryDto get(long id) {
         return CategoryMapper.toDto(
                 repo.findById(id).orElseThrow(
-                        ()->new NotFoundException("Category with id=" + id + " was not found"))
+                        () -> new NotFoundException("Category with id=" + id + " was not found"))
         );
     }
 }

@@ -17,8 +17,8 @@ import ru.practicum.ewm.service.event.repository.EventRepository;
 import ru.practicum.ewm.service.exception.NotFoundException;
 import ru.practicum.ewm.service.request.model.RequestStatus;
 import ru.practicum.ewm.service.request.repository.RequestRepository;
-import ru.practicum.ewm.stats.client.StatsClient;
 import ru.practicum.ewm.service.user.repository.UserRepository;
+import ru.practicum.ewm.stats.client.StatsClient;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -33,15 +33,14 @@ import static ru.practicum.ewm.service.event.model.EventState.PUBLISHED;
 @Transactional(readOnly = true)
 public class EventServiceImpl implements EventService {
 
+    // форматтеры для строгого парсинга
+    private static final DateTimeFormatter F_SPACE = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    private static final DateTimeFormatter F_T = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
     private final EventRepository eventRepository;
     private final UserRepository userRepository;
     private final CategoryRepository categoryRepository;
     private final RequestRepository requestRepository;
     private final StatsClient statsClient;
-
-    // форматтеры для строгого парсинга
-    private static final DateTimeFormatter F_SPACE = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
-    private static final DateTimeFormatter F_T = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
 
     @Override
     @Transactional
@@ -59,7 +58,7 @@ public class EventServiceImpl implements EventService {
     ) {
         // строгая валидация диапазона дат
         LocalDateTime start = parseStrict(rangeStart);   // 400 если формат некорректный
-        LocalDateTime end   = parseStrict(rangeEnd);     // 400 если формат некорректный
+        LocalDateTime end = parseStrict(rangeEnd);     // 400 если формат некорректный
         validateRangeOrThrow(start, end);                // 400 если end < start
 
         // только опубликованные
@@ -182,7 +181,7 @@ public class EventServiceImpl implements EventService {
         );
 
         // дата минимум +2 часа от «сейчас»
-        if (dto.getEventDate() == null || dto.getEventDate().isBefore(LocalDateTime.now().plusHours(2)))  {
+        if (dto.getEventDate() == null || dto.getEventDate().isBefore(LocalDateTime.now().plusHours(2))) {
             throw new IllegalArgumentException("Event date must be at least 2 hours in the future");
         }
         // запрет отрицательного лимита
@@ -300,7 +299,7 @@ public class EventServiceImpl implements EventService {
                                           Pageable pageable) {
         // строгая валидация диапазона дат
         LocalDateTime start = parseStrict(rangeStart);
-        LocalDateTime end   = parseStrict(rangeEnd);
+        LocalDateTime end = parseStrict(rangeEnd);
         validateRangeOrThrow(start, end);
 
         var all = eventRepository.findAll().stream()
@@ -400,7 +399,9 @@ public class EventServiceImpl implements EventService {
         );
     }
 
-    /** Парсит строго. Если строка присутствует, но формат неверный — кидаем 400. Если null/blank — возвращаем null. */
+    /**
+     * Парсит строго. Если строка присутствует, но формат неверный — кидаем 400. Если null/blank — возвращаем null.
+     */
     private LocalDateTime parseStrict(String s) {
         if (s == null || s.isBlank()) return null;
         try {
@@ -413,7 +414,9 @@ public class EventServiceImpl implements EventService {
         }
     }
 
-    /** Если оба конца заданы и end < start — 400. */
+    /**
+     * Если оба конца заданы и end < start — 400.
+     */
     private void validateRangeOrThrow(LocalDateTime start, LocalDateTime end) {
         if (start != null && end != null && end.isBefore(start)) {
             throw new IllegalArgumentException("rangeEnd must be after rangeStart");

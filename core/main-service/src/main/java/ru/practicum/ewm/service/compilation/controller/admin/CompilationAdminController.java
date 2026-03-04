@@ -7,7 +7,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
-import ru.practicum.ewm.service.compilation.dto.*;
+import ru.practicum.ewm.service.compilation.dto.CompilationDto;
+import ru.practicum.ewm.service.compilation.dto.NewCompilationDto;
+import ru.practicum.ewm.service.compilation.dto.UpdateCompilationRequest;
 import ru.practicum.ewm.service.compilation.service.CompilationAdminService;
 
 @Slf4j
@@ -36,7 +38,7 @@ public class CompilationAdminController {
     @PatchMapping("/{compId}")
     public CompilationDto update(
             @PathVariable @Positive Long compId,
-            @Valid @RequestBody(required = false) UpdateCompilationRequest dto ) {
+            @Valid @RequestBody(required = false) UpdateCompilationRequest dto) {
         // Пропускаем PATCH без тела
         if (dto == null) {
             log.info("АДМИН API: PATCH /admin/compilations/{} получено пустое тело — применяем пустой DTO", compId);

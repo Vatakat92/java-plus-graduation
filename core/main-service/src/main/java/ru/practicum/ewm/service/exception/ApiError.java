@@ -1,6 +1,9 @@
 package ru.practicum.ewm.service.exception;
 
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 import org.springframework.http.HttpStatus;
 
 import java.time.LocalDateTime;
@@ -12,13 +15,12 @@ import java.util.List;
 @AllArgsConstructor
 @Builder
 public class ApiError {
+    private static final DateTimeFormatter F = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private List<String> errors;
     private String message;
     private String reason;
-    private String status;     // ВНИМАНИЕ: используем status.name() → "BAD_REQUEST", "CONFLICT", ...
-    private String timestamp;  // "yyyy-MM-dd HH:mm:ss"
-
-    private static final DateTimeFormatter F = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    private String status;
+    private String timestamp;
 
     private static String now() {
         return LocalDateTime.now().format(F);

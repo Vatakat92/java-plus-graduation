@@ -1,13 +1,14 @@
 package ru.practicum.ewm.service.event.model;
 
-import static jakarta.persistence.EnumType.STRING;
-import static jakarta.persistence.GenerationType.IDENTITY;
-
 import jakarta.persistence.*;
 import lombok.*;
-import java.time.LocalDateTime;
 import ru.practicum.ewm.service.category.model.Category;
 import ru.practicum.ewm.service.user.model.User;
+
+import java.time.LocalDateTime;
+
+import static jakarta.persistence.EnumType.STRING;
+import static jakarta.persistence.GenerationType.IDENTITY;
 
 @Entity
 @Table(name = "events")
@@ -37,8 +38,8 @@ public class Event {
 
     @Embedded
     @AttributeOverrides({
-        @AttributeOverride(name = "lat", column = @Column(name = "location_lat", nullable = false)),
-        @AttributeOverride(name = "lon", column = @Column(name = "location_lon", nullable = false))
+            @AttributeOverride(name = "lat", column = @Column(name = "location_lat", nullable = false)),
+            @AttributeOverride(name = "lon", column = @Column(name = "location_lon", nullable = false))
     })
     private Location location;
 
@@ -60,7 +61,8 @@ public class Event {
     @Column(name = "published_on")
     private LocalDateTime publishedOn;
 
-    @Enumerated(STRING) @Column(nullable = false)
+    @Enumerated(STRING)
+    @Column(nullable = false)
     private EventState state;
 
     @Column(nullable = false, length = 120)
