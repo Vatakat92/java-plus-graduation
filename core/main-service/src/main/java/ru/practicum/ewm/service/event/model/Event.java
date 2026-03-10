@@ -38,8 +38,8 @@ public class Event {
 
     @Embedded
     @AttributeOverrides({
-            @AttributeOverride(name = "lat", column = @Column(name = "location_lat", nullable = false)),
-            @AttributeOverride(name = "lon", column = @Column(name = "location_lon", nullable = false))
+        @AttributeOverride(name = "lat", column = @Column(name = "location_lat", nullable = false)),
+        @AttributeOverride(name = "lon", column = @Column(name = "location_lon", nullable = false))
     })
     private Location location;
 
@@ -50,6 +50,7 @@ public class Event {
     private int participantLimit;
 
     @Column(name = "request_moderation", nullable = false)
+    @Builder.Default
     private boolean requestModeration = true;
 
     @Column(name = "event_date", nullable = false)

@@ -18,9 +18,13 @@ import ru.practicum.ewm.service.event.repository.EventRepository;
 import ru.practicum.ewm.service.request.model.RequestStatus;
 import ru.practicum.ewm.service.request.repository.RequestRepository;
 import ru.practicum.ewm.stats.client.StatsClient;
+import ru.practicum.ewm.service.event.model.Event;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+
+
 
 @Service
 @RequiredArgsConstructor
@@ -30,8 +34,6 @@ public class CompilationAdminServiceImpl implements CompilationAdminService {
 
     private final CompilationRepository repository;
     private final EventRepository eventRepository;
-
-    // добавили зависимости
     private final RequestRepository requestRepository;
     private final StatsClient statsClient;
 
@@ -92,11 +94,19 @@ public class CompilationAdminServiceImpl implements CompilationAdminService {
         Set<Long> eventIds = compilation.getEvents();
         if (eventIds == null || eventIds.isEmpty()) return List.of();
 
-        return eventRepository.findAllById(eventIds).stream()
+        List<Event> events = eventRepository.findAllById(eventIds);
+
+        // batch load views for all events at once
+        Map<String, Long> viewsByUri = statsClient.viewsForUris(
+                events.stream().map(e -> "/events/" + e.getId()).toList(),
+                true
+        );
+
+        return events.stream()
                 .map(e -> {
                     long confirmed = requestRepository
                             .countByEventIdAndStatus(e.getId(), RequestStatus.CONFIRMED);
-                    long views = statsClient.viewsForEvent(e.getId());
+                    long views = viewsByUri.getOrDefault("/events/" + e.getId(), 0L);
                     return EventMapper.toShortDto(e, confirmed, views);
                 })
                 .toList();

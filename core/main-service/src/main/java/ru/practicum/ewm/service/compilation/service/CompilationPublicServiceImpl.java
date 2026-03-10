@@ -16,9 +16,13 @@ import ru.practicum.ewm.service.event.repository.EventRepository;
 import ru.practicum.ewm.service.request.model.RequestStatus;
 import ru.practicum.ewm.service.request.repository.RequestRepository;
 import ru.practicum.ewm.stats.client.StatsClient;
+import ru.practicum.ewm.service.event.model.Event;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+
+
 
 @Service
 @RequiredArgsConstructor
@@ -28,8 +32,6 @@ public class CompilationPublicServiceImpl implements CompilationPublicService {
 
     private final CompilationRepository repository;
     private final EventRepository eventRepository;
-
-    // добавили зависимости для счётчиков
     private final RequestRepository requestRepository;
     private final StatsClient statsClient;
 
@@ -60,14 +62,23 @@ public class CompilationPublicServiceImpl implements CompilationPublicService {
         if (eventIds == null || eventIds.isEmpty()) {
             return CompilationMapper.toDto(compilation, List.of());
         }
-        List<EventShortDto> events = eventRepository.findAllById(eventIds).stream()
+
+        List<Event> events = eventRepository.findAllById(eventIds);
+
+        Map<String, Long> viewsByUri = statsClient.viewsForUris(
+                events.stream().map(e -> "/events/" + e.getId()).toList(),
+                true
+        );
+
+        List<EventShortDto> eventDtos = events.stream()
                 .map(e -> {
                     long confirmed = requestRepository
                             .countByEventIdAndStatus(e.getId(), RequestStatus.CONFIRMED);
-                    long views = statsClient.viewsForEvent(e.getId());
+                    long views = viewsByUri.getOrDefault("/events/" + e.getId(), 0L);
                     return EventMapper.toShortDto(e, confirmed, views);
                 })
                 .toList();
-        return CompilationMapper.toDto(compilation, events);
+
+        return CompilationMapper.toDto(compilation, eventDtos);
     }
 }

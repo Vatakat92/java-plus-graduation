@@ -30,11 +30,15 @@ public class NewEventDto {
 
     @NotNull
     private LocationDto location;
+
+    @Builder.Default
     private boolean paid = false;
 
     @Min(0)
+    @Builder.Default
     private int participantLimit = 0;
 
+    @Builder.Default
     private boolean requestModeration = true;
 
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
