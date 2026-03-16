@@ -35,7 +35,7 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <configuration>
-                    <mainClass>config.ConfigServer</mainClass>
+                    <mainClass>ru.practicum.ewm.config.ConfigServerApp</mainClass>
                 </configuration>
                 <executions>
                     <execution>
