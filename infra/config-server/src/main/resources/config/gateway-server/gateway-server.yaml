@@ -1,0 +1,108 @@
+spring:
+  cloud:
+    gateway:
+      discovery:
+        locator:
+          enabled: false
+      routes:
+        - id: category_service_admin_route
+          uri: lb://category-service
+          predicates:
+            - Path=/admin/categories/**
+
+        - id: category_service_public_route
+          uri: lb://category-service
+          predicates:
+            - Path=/categories/**
+
+        - id: category_service_internal_route
+          uri: lb://category-service
+          predicates:
+            - Path=/internal/category/**
+
+        - id: comment_service_admin_route
+          uri: lb://comment-service
+          order: -20
+          predicates:
+            - Path=/admin/events/{eventId}/comments/**
+
+        - id: comment_service_private_route
+          uri: lb://comment-service
+          order: -20
+          predicates:
+            - Path=/users/{userId}/events/{eventId}/comments/**
+
+        - id: comment_service_public_route
+          uri: lb://comment-service
+          order: -20
+          predicates:
+            - Path=/events/{eventId}/comments/**
+
+        - id: compilation_service_admin_route
+          uri: lb://compilation-service
+          predicates:
+            - Path=/admin/compilations/**
+
+        - id: compilation_service_public_route
+          uri: lb://compilation-service
+          predicates:
+            - Path=/compilations/**
+
+        - id: request_service_private_route
+          uri: lb://request-service
+          order: -10
+          predicates:
+            - Path=/users/{userId}/events/{eventId}/requests/**
+
+        - id: request_service_public_route
+          uri: lb://request-service
+          predicates:
+            - Path=/users/{userId}/requests/**
+
+        - id: request_service_internal_route
+          uri: lb://request-service
+          predicates:
+            - Path=/internal/requests/**
+
+        - id: event_service_admin_route
+          uri: lb://event-service
+          order: 0
+          predicates:
+            - Path=/admin/events/**
+
+        - id: event_service_private_route
+          uri: lb://event-service
+          order: 0
+          predicates:
+            - Path=/users/{userId}/events/**
+
+        - id: event_service_public_route
+          uri: lb://event-service
+          order: 0
+          predicates:
+            - Path=/events/**
+
+        - id: event_service_internal_route
+          uri: lb://event-service
+          predicates:
+            - Path=/internal/events/**
+
+        - id: user_service_admin_route
+          uri: lb://user-service
+          predicates:
+            - Path=/admin/users/**
+
+        - id: user_service_internal_route
+          uri: lb://user-service
+          predicates:
+            - Path=/internal/users/**
+
+server:
+  port: 8080
+
+logging:
+  level:
+    org:
+      springframework:
+        cloud:
+          gateway: DEBUG

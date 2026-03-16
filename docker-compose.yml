@@ -1,38 +1,142 @@
 services:
   stats-db:
     image: postgres:16.1
-    container_name: stats-db
-    environment:
-      - POSTGRES_DB=stats
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
+    container_name: ewm-stats-db
     ports:
-      - "5460:5432"
+      - "6543:5432"
+    environment:
+      POSTGRES_USER: stat_user
+      POSTGRES_PASSWORD: stat_password
+      POSTGRES_DB: ewm_stats_db
     volumes:
-      - stats-data:/var/lib/postgresql/data
+      - ./stats/stats-server/src/main/resources/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+      - stats-db-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -q -d $$POSTGRES_DB -U $$POSTGRES_USER"]
-      interval: 5s
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB} -p 5432"]
+      interval: 10s
       timeout: 5s
-      retries: 10
+      retries: 5
+      start_period: 10s
 
-  ewm-db:
+  category-db:
     image: postgres:16.1
-    container_name: ewm-db
-    environment:
-      - POSTGRES_DB=ewm
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
+    container_name: category-service-db
     ports:
-      - "5433:5432"
+      - "5435:5432"
+    environment:
+      POSTGRES_USER: category_service
+      POSTGRES_PASSWORD: category_password
+      POSTGRES_DB: category_db
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ./core/category-service/src/main/resources/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+      - category-db-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -q -d $$POSTGRES_DB -U $$POSTGRES_USER"]
-      interval: 5s
+      test: [ "CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB} -p 5432" ]
+      interval: 10s
       timeout: 5s
-      retries: 10
+      retries: 5
+      start_period: 10s
+
+  comment-db:
+    image: postgres:16.1
+    container_name: comment-service-db
+    ports:
+      - "5436:5432"
+    environment:
+      POSTGRES_USER: comment_service
+      POSTGRES_PASSWORD: comment_password
+      POSTGRES_DB: comment_db
+    volumes:
+      - ./core/comment-service/src/main/resources/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+      - comment-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB} -p 5432"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  compilation-db:
+    image: postgres:16.1
+    container_name: compilation-service-db
+    ports:
+      - "5437:5432"
+    environment:
+      POSTGRES_USER: compilation_service
+      POSTGRES_PASSWORD: compilation_password
+      POSTGRES_DB: compilation_db
+    volumes:
+      - ./core/compilation-service/src/main/resources/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+      - compilation-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB} -p 5432"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  event-db:
+    image: postgres:16.1
+    container_name: event-service-db
+    ports:
+      - "5438:5432"
+    environment:
+      POSTGRES_USER: event_service
+      POSTGRES_PASSWORD: event_password
+      POSTGRES_DB: event_db
+    volumes:
+      - ./core/event-service/src/main/resources/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+      - event-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB} -p 5432"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  request-db:
+    image: postgres:16.1
+    container_name: request-service-db
+    ports:
+      - "5439:5432"
+    environment:
+      POSTGRES_USER: request_service
+      POSTGRES_PASSWORD: request_password
+      POSTGRES_DB: request_db
+    volumes:
+      - ./core/request-service/src/main/resources/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+      - request-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB} -p 5432"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  user-db:
+    image: postgres:16.1
+    container_name: user-service-db
+    ports:
+      - "5440:5432"
+    environment:
+      POSTGRES_USER: user_service
+      POSTGRES_PASSWORD: user_password
+      POSTGRES_DB: user_db
+    volumes:
+      - ./core/user-service/src/main/resources/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+      - user-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB} -p 5432"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
 volumes:
-  stats-data:
-  postgres_data:
+  stats-db-data:
+  category-db-data:
+  comment-db-data:
+  compilation-db-data:
+  event-db-data:
+  request-db-data:
+  user-db-data:

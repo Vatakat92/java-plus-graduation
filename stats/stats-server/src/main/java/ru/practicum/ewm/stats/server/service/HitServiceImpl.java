@@ -29,9 +29,10 @@ public class HitServiceImpl implements HitService {
         if (entity.getUri() != null) {
             entity.setUri(entity.getUri().trim());
         }
+        log.info("Saving hit data from Request: app={}, hit_timestamp={}, ip={}, uri={}", entity.getApp(), hitDto.getTimestamp(), hitDto.getIp(), entity.getUri());
         entity = hitRepository.save(entity);
         log.info("Saved hit with id={}", entity.getId());
-        return HitMapper.toDto(entity); // 201 + json тело в контроллере
+        return HitMapper.toDto(entity);
     }
 
     @Transactional(readOnly = true)
@@ -40,7 +41,6 @@ public class HitServiceImpl implements HitService {
                                         LocalDateTime end,
                                         List<String> uris,
                                         boolean unique) {
-        // Валидируем ЗДЕСЬ, чтобы юнит-тесты (которые идут в сервис) видели IllegalArgumentException
         Objects.requireNonNull(start, "start must not be null");
         Objects.requireNonNull(end,   "end must not be null");
 
@@ -54,23 +54,20 @@ public class HitServiceImpl implements HitService {
         List<ViewStatsDto> result;
         if (uris != null && !uris.isEmpty()) {
             result = unique
-                    ? hitRepository.getUniqueStatsByUris(start, end, uris)
-                    : hitRepository.getStatsByUris(start, end, uris);
+                ? hitRepository.getUniqueStatsByUris(start, end, uris)
+                : hitRepository.getStatsByUris(start, end, uris);
         } else {
             result = unique
-                    ? hitRepository.getUniqueStats(start, end)
-                    : hitRepository.getStats(start, end);
+                ? hitRepository.getUniqueStats(start, end)
+                : hitRepository.getStats(start, end);
         }
 
         log.info("Query returned {} results", result.size());
 
-        if (result == null || result.isEmpty()) {
+        if (result.isEmpty()) {
             return List.of();
         }
         result.sort(Comparator.comparingLong(ViewStatsDto::getHits).reversed());
-
-        long totalHits = hitRepository.count();
-        log.info("Total hits in DB: {}", totalHits);
         return result;
     }
 }

@@ -1,0 +1,100 @@
+server:
+  port: 0
+
+spring:
+  cloud:
+    openfeign:
+      circuitbreaker:
+        enabled: true
+        alphanumeric-ids:
+          enabled: true
+  jpa:
+    show-sql: true
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate:
+        format_sql: true
+  sql:
+    init:
+      mode: always
+  datasource:
+    url: jdbc:postgresql://localhost:5438/event_db
+    username: event_service
+    password: event_password
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      CategoryServiceClientgetCategoriesByIds:
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+      CategoryServiceClientgetCategoryById:
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+      RequestServiceClientgetCountByEventIdsAndStatus:
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+      RequestServiceClientgetCountByEventIdAndStatus:
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+      StatsServiceClientgetStats:
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+      StatsServiceClientcreateHit:
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+      UserServiceClientgetUsersByIds:
+        slidingWindowSize: 10
+        waitDurationInOpenState: 10s
+        minimumNumberOfCalls: 5
+        failureRateThreshold: 50
+      UserServiceClientgetUserById:
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+
+  timelimiter:
+    instances:
+      CategoryServiceClientgetCategoriesByIds:
+        timeoutDuration: 2s
+      CategoryServiceClientgetCategoryById:
+        timeoutDuration: 2s
+      RequestServiceClientgetCountByEventIdsAndStatus:
+        timeoutDuration: 2s
+      RequestServiceClientgetCountByEventIdAndStatus:
+        timeoutDuration: 2s
+      StatsServiceClientgetStats:
+        timeoutDuration: 2s
+      StatsServiceClientcreateHit:
+        timeoutDuration: 2s
+      UserServiceClientgetUsersByIds:
+        timeoutDuration: 2s
+      UserServiceClientgetUserById:
+        timeoutDuration: 2s
+
+stats-server:
+  base-url: http://localhost:9090
+  connect-timeout: 500ms
+  read-timeout: 1000ms
+  hit-max-attempts: 3
+  hit-backoff-millis: 200
+  hit-backoff-cap-millis: 2000
+
+logging:
+  level:
+    root: INFO
+    ru.practicum: DEBUG
