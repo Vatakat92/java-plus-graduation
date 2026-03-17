@@ -1,0 +1,64 @@
+server:
+  port: 0
+
+spring:
+  cloud:
+    openfeign:
+      circuitbreaker:
+        enabled: true
+        alphanumeric-ids:
+          enabled: true
+  jpa:
+    show-sql: true
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate:
+        format_sql: true
+  sql:
+    init:
+      mode: always
+  datasource:
+    url: jdbc:postgresql://localhost:5437/compilation_db
+    username: compilation_service
+    password: compilation_password
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      RequestServiceClientgetCountByEventIdsAndStatus:
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+      EventServiceClientgetAllEventsById:
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+      StatsServiceClientgetStats:
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+      StatsServiceClientcreateHit:
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+
+  timelimiter:
+    instances:
+      RequestServiceClientgetCountByEventIdsAndStatus:
+        timeoutDuration: 2s
+      EventServiceClientgetAllEventsById:
+        timeoutDuration: 2s
+      StatsServiceClientgetStats:
+        timeoutDuration: 2s
+      StatsServiceClientcreateHit:
+        timeoutDuration: 2s
+
+logging:
+  level:
+    root: INFO
+    ru.practicum: DEBUG
