@@ -1,6 +1,6 @@
 package ru.practicum.integration.request.dto;
 
-import java.util.Set;
+import java.util.List;
 
-public record BatchCountEventIdandStatus(Set<Long> eventIds, RequestStatus status) {
+public record BatchCountEventIdAndStatus(List<Long> eventIds, RequestStatus status) {
 }

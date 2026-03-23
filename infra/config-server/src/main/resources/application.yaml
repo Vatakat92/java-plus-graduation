@@ -1,0 +1,27 @@
+spring:
+  application:
+    name: config-server
+  profiles:
+    active: native
+  cloud:
+    config:
+      server:
+        native:
+          searchLocations:
+            - classpath:config/aggregator/
+            - classpath:config/analyzer/
+            - classpath:config/collector/
+            - classpath:config/category-service/
+            - classpath:config/comment-service/
+            - classpath:config/compilation-service/
+            - classpath:config/event-service/
+            - classpath:config/request-service/
+            - classpath:config/user-service/
+            - classpath:config/gateway-server/
+server:
+  port: 0
+
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: http://localhost:8761/eureka/

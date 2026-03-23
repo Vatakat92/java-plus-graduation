@@ -36,4 +36,10 @@ public class InternalEventRequestController {
                                               @PathVariable Long eventId) {
         return requestService.getByRequesterById(userId, eventId);
     }
+
+    @GetMapping("/attend/{userId}/event/{eventId}")
+    public Boolean hasUserIdAttendEventId(@PathVariable Long userId,
+                                          @PathVariable Long eventId) {
+        return requestService.hasUserIdAttendEventId(userId, eventId);
+    }
 }

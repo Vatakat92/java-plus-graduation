@@ -26,4 +26,7 @@ public interface RequestServiceClient {
     Long getCountByEventIdAndStatus(@PathVariable Long eventId,
                                     @PathVariable RequestStatus status);
 
+    @GetMapping("/attend/{userId}/event/{eventId}")
+    Boolean hasUserIdAttendEventId(@PathVariable Long eventId,
+                                    @PathVariable Long userId);
 }

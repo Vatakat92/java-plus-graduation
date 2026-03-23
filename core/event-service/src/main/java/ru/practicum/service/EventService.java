@@ -1,7 +1,11 @@
 package ru.practicum.service;
 
+import static ru.practicum.clients.ActionType.ACTION_LIKE;
+import static ru.practicum.clients.ActionType.ACTION_VIEW;
 import static ru.practicum.model.EventState.CANCELED;
 import static ru.practicum.model.EventState.PUBLISHED;
+import static ru.practicum.model.StateAction.PUBLISH_EVENT;
+import static ru.practicum.model.StateAction.REJECT_EVENT;
 
 import java.time.LocalDateTime;
 import java.util.Comparator;
@@ -16,6 +20,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ru.practicum.clients.AnalyzerClient;
+import ru.practicum.clients.CollectorClient;
 import ru.practicum.dto.external.EventRichShortDto;
 import ru.practicum.dto.external.UpdateEventAdminRequest;
 import ru.practicum.dto.internal.EventSummaryDto;
@@ -28,7 +34,6 @@ import ru.practicum.exceptions.NotFoundException;
 import ru.practicum.integration.category.CategoryServiceGateway;
 import ru.practicum.integration.request.RequestServiceGateway;
 import ru.practicum.integration.request.dto.RequestStatus;
-import ru.practicum.integration.stats.StatsServiceGateway;
 import ru.practicum.integration.user.UserServiceGateway;
 import ru.practicum.mapper.EventMapper;
 import ru.practicum.model.Event;
@@ -42,10 +47,13 @@ public class EventService {
     private final UserServiceGateway userServiceGateway;
     private final CategoryServiceGateway categoryServiceGateway;
     private final RequestServiceGateway requestServiceGateway;
-    private final StatsServiceGateway statsServiceGateway;
+    private final AnalyzerClient analyzerClient;
+    private final CollectorClient collectorClient;
+
     private final EventRepository eventRepository;
     private final EventWriteService eventWriteService;
 
+    // External API
     @Transactional(readOnly = true)
     public List<EventRichShortDto> publicSearch(
             String text,
@@ -55,9 +63,7 @@ public class EventService {
             LocalDateTime end,
             Boolean onlyAvailable,
             String sort,
-            Pageable pageable,
-            String uri,
-            String ip
+            Pageable pageable
     ) {
         validateRangeOrThrow(start, end);
 
@@ -111,16 +117,17 @@ public class EventService {
             );
         }
 
+        // Load candidate events matching local filters.
         List<Event> allEvents = eventRepository.findAll(eventSpecification);
         List<Long> allEventIds = allEvents.stream()
                 .map(Event::getId)
                 .toList();
 
-        statsServiceGateway.hit(uri, ip);
-
+        // Batch load confirmed counts from request-service
         Map<Long, Long> confirmedByEventId =
                 requestServiceGateway.getCountByEventIdsAndStatus(allEventIds, RequestStatus.CONFIRMED);
 
+        // if onlyAvailable -> filter by participantLimit/count
         if (Boolean.TRUE.equals(onlyAvailable)) {
             allEvents = allEvents.stream()
                     .filter(e -> e.getParticipantLimit() == 0
@@ -132,9 +139,8 @@ public class EventService {
                     .toList();
         }
 
-
-        // Batch load views from stats-service
-        Map<Long, Long> viewsByEventId = statsServiceGateway.getViewsForEventIds(allEventIds);
+        // Batch load rating from analyzer(stats-service)
+        Map<Long, Double> scoreByEventId = analyzerClient.getInteractionsCount(allEventIds);
 
         // Bach load user from user-service
         List<Long> allEventsUserIds = allEvents.stream()
@@ -152,8 +158,8 @@ public class EventService {
         List<Event> sortedEvents;
         if ("VIEWS".equalsIgnoreCase(sort)) {
             sortedEvents = allEvents.stream()
-                    .sorted(Comparator.comparingLong(
-                            (Event e) -> viewsByEventId.getOrDefault(e.getId(), 0L)
+                    .sorted(Comparator.comparingDouble(
+                            (Event e) -> scoreByEventId.getOrDefault(e.getId(), 0D)
                     ).reversed())
                     .toList();
         } else {
@@ -179,13 +185,13 @@ public class EventService {
                         usersById.get(e.getInitiatorId()),
                         categoriesById.get(e.getCategoryId()),
                         confirmedByEventId.getOrDefault(e.getId(), 0L),
-                        viewsByEventId.getOrDefault(e.getId(), 0L)
+                        scoreByEventId.getOrDefault(e.getId(), 0D)
                 ))
                 .toList();
     }
 
     @Transactional(readOnly = true)
-    public EventRichFullDto getEventById(Long eventId, String uri, String ip) {
+    public EventRichFullDto getEventById(Long eventId, Long userId) {
         Event event = eventRepository.findById(eventId).orElseThrow(
                 () -> new NotFoundException(
                         "Event with id=" + eventId + " was not found"
@@ -201,16 +207,16 @@ public class EventService {
         CategoryShortDto categoryShortDto = categoryServiceGateway.getCategoryById(event.getCategoryId());
         UserShortDto userShortDto = userServiceGateway.getUserById(event.getInitiatorId());
         Long confirmedRequest = requestServiceGateway.getCountByEventIdAndStatus(event.getId(), RequestStatus.CONFIRMED);
-        Long views = statsServiceGateway.getViewForEventId(event.getId());
+        Double rating = getScoreForEventId(event.getId());
 
-        statsServiceGateway.hit(uri, ip);
+        collectorClient.collectUserActions(userId, eventId, ACTION_VIEW);
 
         return EventMapper.toFullDto(
                 event,
                 userShortDto,
                 categoryShortDto,
                 confirmedRequest,
-                views
+                rating
         );
     }
 
@@ -233,8 +239,8 @@ public class EventService {
                 .map(Event::getId)
                 .toList();
 
-        // Batch load views from stats-service
-        Map<Long, Long> viewCountsByEventId = statsServiceGateway.getViewsForEventIds(eventIds);
+        // Batch load rating from analyzer(stats-service)
+        Map<Long, Double> scoreByEventId = analyzerClient.getInteractionsCount(eventIds);
 
         // Batch load confirmed counts from request-service
         Map<Long, Long> confirmedRequestCountsByEventId =
@@ -253,8 +259,72 @@ public class EventService {
                         userShortDto,
                         categoryShortDtoMap.get(e.getCategoryId()),
                         confirmedRequestCountsByEventId.getOrDefault(e.getId(), 0L),
-                        viewCountsByEventId.getOrDefault(e.getId(), 0L)
+                        scoreByEventId.getOrDefault(e.getId(), 0D)
                     )
+                )
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public void likeEventById(Long userId, Long eventId) {
+        Event event = eventRepository.findById(eventId).orElseThrow(
+                () -> new NotFoundException(
+                        "Event with id=" + eventId + " was not found."
+                )
+        );
+
+        if (event.getState() != PUBLISHED) {
+            throw new IllegalArgumentException(
+                    "Can't set LIKE an unpublished event."
+            );
+        }
+
+        if (!requestServiceGateway.hasUserIdAttendEventId(userId, eventId)) {
+            throw new IllegalArgumentException(
+                    "The user did not attend the event."
+            );
+        }
+
+        collectorClient.collectUserActions(userId, eventId, ACTION_LIKE);
+    }
+
+    @Transactional(readOnly = true)
+    public List<EventRichShortDto> getRecommendationsForUserId(Long userId, int size) {
+
+        Map<Long, Double> recommendationEventsAndScore = analyzerClient.getRecommendationsForUserId(userId, size);
+
+        // Batch load event data
+        List<Event> events = eventRepository.findAllById(recommendationEventsAndScore.keySet());
+
+        List<Long> eventIds = events.stream()
+                .map(Event::getId)
+                .toList();
+
+        // Batch load confirmed counts from request-service
+        Map<Long, Long> confirmedRequestCountsByEventId =
+                requestServiceGateway.getCountByEventIdsAndStatus(eventIds, RequestStatus.CONFIRMED);
+
+        // Bach load category from category-service
+        List<Long> eventsCategoryIds = events.stream()
+                .map(Event::getCategoryId)
+                .toList();
+        Map<Long, CategoryShortDto> categoryShortDtoMap = categoryServiceGateway.getCategoriesByIds(eventsCategoryIds);
+
+        // Bach load user from user-service
+        List<Long> allEventsUserIds = events.stream()
+                .map(Event::getInitiatorId)
+                .toList();
+        Map<Long, UserShortDto> usersShortDtoMap = userServiceGateway.getUserByIds(allEventsUserIds);
+
+        return events.stream()
+                .map(
+                        e -> EventMapper.toShortDto(
+                                e,
+                                usersShortDtoMap.get(e.getInitiatorId()),
+                                categoryShortDtoMap.get(e.getCategoryId()),
+                                confirmedRequestCountsByEventId.getOrDefault(e.getId(), 0L),
+                                recommendationEventsAndScore.getOrDefault(e.getId(), 0D)
+                        )
                 )
                 .toList();
     }
@@ -276,14 +346,14 @@ public class EventService {
         CategoryShortDto category = categoryServiceGateway.getCategoryById(event.getCategoryId());
         UserShortDto initiator = userServiceGateway.getUserById(event.getInitiatorId());
         Long confirmedRequest = requestServiceGateway.getCountByEventIdAndStatus(event.getId(), RequestStatus.CONFIRMED);
-        Long views = statsServiceGateway.getViewForEventId(event.getId());
+        Double rating = getScoreForEventId(event.getId());
 
         return EventMapper.toFullDto(
                 event,
                 initiator,
                 category,
                 confirmedRequest,
-                views
+                rating
         );
     }
 
@@ -310,7 +380,7 @@ public class EventService {
                 initiator,
                 category,
                 0L,
-                0L
+                0D
         );
     }
 
@@ -355,7 +425,7 @@ public class EventService {
         }
 
         Long confirmedRequest = requestServiceGateway.getCountByEventIdAndStatus(event.getId(), RequestStatus.CONFIRMED);
-        Long views = statsServiceGateway.getViewForEventId(event.getId());
+        Double rating = getScoreForEventId(event.getId());
 
         Event patched = eventWriteService.patchEvent(event, dto);
 
@@ -364,7 +434,7 @@ public class EventService {
                 initiator,
                 category,
                 confirmedRequest,
-                views
+                rating
         );
     }
 
@@ -446,8 +516,8 @@ public class EventService {
                 .map(Event::getCategoryId)
                 .toList();
 
-        // Batch load views from stats-service
-        Map<Long, Long> viewsByEventId = statsServiceGateway.getViewsForEventIds(eventIds);
+        // Batch load rating from analyzer(stats-service)
+        Map<Long, Double> scoreByEventId = analyzerClient.getInteractionsCount(eventIds);
 
         // Batch load confirmed counts from request-service
         Map<Long, Long> confirmedByEventId =
@@ -467,7 +537,7 @@ public class EventService {
                         usersById.get(e.getInitiatorId()),
                         categoriesById.get(e.getCategoryId()),
                         confirmedByEventId.getOrDefault(e.getId(), 0L),
-                        viewsByEventId.getOrDefault(e.getId(), 0L)
+                        scoreByEventId.getOrDefault(e.getId(), 0D)
                 ))
                 .toList();
     }
@@ -497,7 +567,7 @@ public class EventService {
         LocalDateTime publishedOn = event.getPublishedOn();
         EventState state = event.getState();
 
-        if ("PUBLISH_EVENT".equalsIgnoreCase(dto.getStateAction())) {
+        if (dto.getStateAction() == PUBLISH_EVENT) {
 
             publishedOn = LocalDateTime.now();
 
@@ -514,7 +584,7 @@ public class EventService {
             }
             state = PUBLISHED;
 
-        } else if ("REJECT_EVENT".equalsIgnoreCase(dto.getStateAction())) {
+        } else if (dto.getStateAction() == REJECT_EVENT) {
             if (event.getState() == PUBLISHED) {
                 throw new IllegalStateException(
                         "Cannot reject the event because it's already published"
@@ -531,7 +601,7 @@ public class EventService {
         CategoryShortDto category = categoryServiceGateway.getCategoryById(categoryId);
         UserShortDto initiator = userServiceGateway.getUserById(event.getInitiatorId());
         Long confirmedRequest = requestServiceGateway.getCountByEventIdAndStatus(event.getId(), RequestStatus.CONFIRMED);
-        Long views = statsServiceGateway.getViewForEventId(event.getId());
+        Double rating = getScoreForEventId(event.getId());
 
         Event patched = eventWriteService.patchEvent(event, dto, categoryId, publishedOn, state);
 
@@ -540,7 +610,7 @@ public class EventService {
                 initiator,
                 category,
                 confirmedRequest,
-                views
+                rating
         );
     }
 
@@ -576,5 +646,10 @@ public class EventService {
         if (start != null && end != null && end.isBefore(start)) {
             throw new IllegalArgumentException("Date end must be after start date.");
         }
+    }
+
+    private Double getScoreForEventId(Long eventId) {
+        Map<Long, Double> scores = analyzerClient.getInteractionsCount(List.of(eventId));
+        return scores.getOrDefault(eventId, 0D);
     }
 }

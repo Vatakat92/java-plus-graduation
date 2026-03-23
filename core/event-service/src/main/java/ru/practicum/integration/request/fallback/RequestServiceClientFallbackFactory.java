@@ -30,6 +30,13 @@ public class RequestServiceClientFallbackFactory implements FallbackFactory<Requ
                         eventId, status, cause.toString());
                 throw new RequestServiceUnavailableException("Request service is unavailable.", cause);
             }
+
+            @Override
+            public Boolean hasUserIdAttendEventId(Long eventId, Long userId) {
+                log.warn("Request service is unavailable. eventId={}, userId={}, cause={}",
+                        eventId, userId, cause.toString());
+                throw new RequestServiceUnavailableException("Request service is unavailable.", cause);
+            }
         };
     }
 }

@@ -16,7 +16,7 @@ public final class EventMapper {
             UserShortDto initiator,
             CategoryShortDto category,
             Long confirmed,
-            Long views
+            Double rating
     ) {
         return EventRichShortDto.builder()
                 .id(e.getId())
@@ -26,7 +26,7 @@ public final class EventMapper {
                 .eventDate(e.getEventDate())
                 .initiator(initiator)
                 .paid(e.getPaid())
-                .title(e.getTitle()).views(views)
+                .title(e.getTitle()).rating(rating)
                 .build();
     }
 
@@ -35,7 +35,7 @@ public final class EventMapper {
             UserShortDto initiator,
             CategoryShortDto category,
             Long confirmed,
-            Long views
+            Double rating
     ) {
 
         return EventRichFullDto.builder()
@@ -59,7 +59,7 @@ public final class EventMapper {
                 .requestModeration(e.getRequestModeration())
                 .state(e.getState().name())
                 .title(e.getTitle())
-                .views(views)
+                .rating(rating)
                 .build();
     }
 
@@ -80,5 +80,4 @@ public final class EventMapper {
                 .requestModeration(e.getRequestModeration())
                 .build();
     }
-
 }

@@ -9,6 +9,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import ru.practicum.model.StateAction;
 
 @Data
 @NoArgsConstructor
@@ -39,5 +40,5 @@ public class UpdateEventAdminRequest {
     @Size(min = 3, max = 120, message = "Title length must be 3..120")
     private String title;
 
-    private String stateAction;
+    private StateAction stateAction;
 }

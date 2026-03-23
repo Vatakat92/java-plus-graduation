@@ -1,18 +1,23 @@
 package ru.practicum.service;
 
+import static ru.practicum.clients.ActionType.ACTION_REGISTER;
+import static ru.practicum.integration.event.dto.EventState.PUBLISHED;
+import static ru.practicum.model.RequestStatus.CONFIRMED;
+import static ru.practicum.model.RequestStatus.REJECTED;
+
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ru.practicum.clients.CollectorClient;
 import ru.practicum.dto.external.RequestUpdateDto;
 import ru.practicum.dto.external.RequestUpdateRespondDto;
 import ru.practicum.dto.external.ParticipationRequestDto;
 import ru.practicum.dto.internal.RequestShortDto;
 import ru.practicum.exceptions.NotFoundException;
 import ru.practicum.integration.event.EventServiceGateway;
-import ru.practicum.integration.event.dto.EventState;
 import ru.practicum.integration.event.dto.EventSummaryDto;
 import ru.practicum.integration.user.UserServiceGateway;
 import ru.practicum.integration.user.dto.UserShortDto;
@@ -27,9 +32,12 @@ public class RequestService {
 
     private final EventServiceGateway eventServiceGateway;
     private final UserServiceGateway userServiceGateway;
+    private final CollectorClient collectorClient;
+
     private final RequestRepository requestRepository;
     private final RequestWriteService requestWriteService;
 
+    // External API
     @Transactional(readOnly = true)
     public List<ParticipationRequestDto> getRequestsByUserId(Long userId) {
 
@@ -73,20 +81,22 @@ public class RequestService {
             );
         }
 
-        if (event.getState() != EventState.PUBLISHED) {
+        if (event.getState() != PUBLISHED) {
             throw new IllegalStateException(
                     "Cannot participate in unpublished event."
             );
         }
 
         if (event.getParticipantLimit() > 0) {
-            Long confirmed = requestRepository.countByEventIdAndStatus(event.getId(), RequestStatus.CONFIRMED);
+            Long confirmed = requestRepository.countByEventIdAndStatus(event.getId(), CONFIRMED);
             if (confirmed >= event.getParticipantLimit()) {
                 throw new IllegalStateException(
                         "The participant limit has been reached."
                 );
             }
         }
+
+        collectorClient.collectUserActions(userId, eventId, ACTION_REGISTER);
 
         return requestWriteService.createRequest(user, event);
     }
@@ -131,7 +141,7 @@ public class RequestService {
             );
         }
 
-        if (dto.getStatus() != RequestStatus.CONFIRMED && dto.getStatus() != RequestStatus.REJECTED) {
+        if (dto.getStatus() != CONFIRMED && dto.getStatus() != REJECTED) {
             throw new IllegalArgumentException(
                     "Request status must be CONFIRMED or REJECTED. Current value: " + dto.getStatus()
             );
@@ -139,10 +149,10 @@ public class RequestService {
 
         Long alreadyConfirmed = requestRepository.countByEventIdAndStatus(
                 event.getId(),
-                RequestStatus.CONFIRMED
+                CONFIRMED
         );
 
-        if (dto.getStatus() == RequestStatus.CONFIRMED
+        if (dto.getStatus() == CONFIRMED
                 && event.getParticipantLimit() > 0
                 && alreadyConfirmed >= event.getParticipantLimit()) {
             throw new IllegalStateException(
@@ -162,6 +172,8 @@ public class RequestService {
         return requestWriteService.updateRequests(capacity, dto, requestsUpdateList);
     }
 
+    // Internal API
+    @Transactional(readOnly = true)
     public Map<Long, Long> getCountByEventIdsAndStatus(List<Long> eventIds, RequestStatus status) {
         return requestRepository.findAllByEventIdInAndStatus(eventIds, status)
                 .stream()
@@ -171,10 +183,12 @@ public class RequestService {
                 ));
     }
 
+    @Transactional(readOnly = true)
     public Long getCountByEventIdAndStatus(Long eventId, RequestStatus status) {
         return requestRepository.countByEventIdAndStatus(eventId, status);
     }
 
+    @Transactional(readOnly = true)
     public RequestShortDto getByRequesterById(Long userId, Long eventId) {
         return requestRepository.findByRequesterIdAndEventId(userId, eventId)
                 .map(RequestMapper::toShortDto)
@@ -183,5 +197,9 @@ public class RequestService {
                                 "Request with userId=" + userId + " and eventId=" + eventId + " not found."
                         )
                 );
+    }
+
+       public Boolean hasUserIdAttendEventId(Long userId, Long eventId) {
+        return requestRepository.existsByRequesterIdAndEventId(userId, eventId);
     }
 }
