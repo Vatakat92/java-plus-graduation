@@ -41,4 +41,14 @@ public class RequestServiceGateway {
             throw new ServiceUnavailableException("Request service is temporarily unavailable");
         }
     }
+
+    public Boolean hasUserIdAttendEventId(Long eventId, Long userId) {
+        try {
+            return requestClient.hasUserIdAttendEventId(eventId, userId);
+        } catch (RequestNotFoundException e) {
+            throw new NotFoundException("Attend requests for userId=" + userId + " for eventId=" + eventId + " was not found");
+        } catch (RequestServiceUnavailableException e) {
+            throw new ServiceUnavailableException("Request service is temporarily unavailable");
+        }
+    }
 }

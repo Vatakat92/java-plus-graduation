@@ -15,10 +15,12 @@ spring:
     properties:
       hibernate:
         format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
   sql:
     init:
       mode: always
   datasource:
+    driverClassName: org.postgresql.Driver
     url: jdbc:postgresql://localhost:5439/request_db
     username: request_service
     password: request_password
@@ -44,13 +46,21 @@ resilience4j:
       UserServiceClientgetUserById:
         timeoutDuration: 2s
 
-stats-server:
-  base-url: http://localhost:9090
-  connect-timeout: 500ms
-  read-timeout: 1000ms
-  hit-max-attempts: 3
-  hit-backoff-millis: 200
-  hit-backoff-cap-millis: 2000
+grpc:
+  server:
+    port: -1
+  client:
+    collector:
+      address: discovery:///collector
+      enableKeepAlive: true
+      keepAliveWithoutCalls: true
+      negotiationType: plaintext
+
+    analyzer:
+      address: discovery:///analyzer
+      enableKeepAlive: true
+      keepAliveWithoutCalls: true
+      negotiationType: plaintext
 
 logging:
   level:

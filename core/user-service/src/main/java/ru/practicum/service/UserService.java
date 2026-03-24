@@ -26,6 +26,7 @@ public class UserService {
 
     private final UserRepository userRepository;
 
+    // External API
     @Transactional
     public UserDto add(NewUserRequest newUserRequest) {
         String email = newUserRequest.getEmail();
@@ -82,6 +83,7 @@ public class UserService {
         userRepository.deleteById(userId);
     }
 
+    // Internal API
     @Transactional(readOnly = true)
     public UserShortDto getUserById(Long userId) {
         return UserMapper.toShortDto(userRepository.findById(userId)

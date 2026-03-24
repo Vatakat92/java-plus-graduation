@@ -26,6 +26,7 @@ public class CategoryService {
     private final CategoryRepository categoryRepository;
     private final EventServiceGateway eventServiceGateway;
 
+    // External API
     @Transactional
     public CategoryDto add(NewCategoryDto dto) {
         return CategoryMapper.toDto(
@@ -82,6 +83,7 @@ public class CategoryService {
         );
     }
 
+    // Internal API
     @Transactional(readOnly = true)
     public CategoryShortDto getCategoryById(Long categoryId) {
         return CategoryMapper.toShortDto(

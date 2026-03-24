@@ -4,7 +4,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -12,6 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ru.practicum.clients.AnalyzerClient;
 import ru.practicum.dto.external.CompilationFullDto;
 import ru.practicum.dto.external.NewCompilationDto;
 import ru.practicum.dto.external.UpdateCompilationDto;
@@ -22,7 +22,6 @@ import ru.practicum.integration.event.dto.EnrichedEventSummaryDto;
 import ru.practicum.integration.event.dto.EventSummaryDto;
 import ru.practicum.integration.request.RequestServiceGateway;
 import ru.practicum.integration.request.dto.RequestStatus;
-import ru.practicum.integration.stats.StatsServiceGateway;
 import ru.practicum.mapper.CompilationMapper;
 import ru.practicum.model.Compilation;
 import ru.practicum.repository.CompilationRepository;
@@ -34,7 +33,8 @@ public class CompilationService {
 
     private final EventServiceGateway eventServiceGateway;
     private final RequestServiceGateway requestServiceGateway;
-    private final StatsServiceGateway statsServiceGateway;
+    private final AnalyzerClient analyzerClient;
+
     private final CompilationRepository compilationRepository;
     private final CompilationWriteService compilationWriteService;
 
@@ -65,9 +65,9 @@ public class CompilationService {
 
         List<EventSummaryDto> fetchedEvents = eventServiceGateway.getAllEventsById(allEventIds);
 
-        Set<Long> fetchedEventIds = fetchedEvents.stream()
+        List<Long> fetchedEventIds = fetchedEvents.stream()
                 .map(EventSummaryDto::getId)
-                .collect(Collectors.toSet());
+                .toList();
 
         Map<Long, EventSummaryDto> eventsById = fetchedEvents.stream()
                 .collect(Collectors.toMap(EventSummaryDto::getId, Function.identity()));
@@ -77,10 +77,15 @@ public class CompilationService {
                 RequestStatus.CONFIRMED
         );
 
-        Map<Long, Long> viewsMap = statsServiceGateway.getViewsForEvents(fetchedEventIds);
+        Map<Long, Double> scoreByEventId = analyzerClient.getInteractionsCount(fetchedEventIds);
 
         return compilations.stream()
-                .map(compilation -> mapCompilationWithEvents(compilation, eventsById, confirmedMap, viewsMap))
+                .map(compilation -> mapCompilationWithEvents(
+                        compilation,
+                        eventsById,
+                        confirmedMap,
+                        scoreByEventId)
+                )
                 .toList();
     }
 
@@ -151,19 +156,23 @@ public class CompilationService {
 
         List<EventSummaryDto> fetchedEvents = eventServiceGateway.getAllEventsById(eventIds);
 
-        Set<Long> fetchedEventIds = fetchedEvents.stream()
+        List<Long> fetchedEventIds = fetchedEvents.stream()
                 .map(EventSummaryDto::getId)
-                .collect(Collectors.toSet());
+                .toList();
 
         Map<Long, Long> confirmedMap = requestServiceGateway.getCountByEventIdsAndStatus(
                         fetchedEventIds,
                         RequestStatus.CONFIRMED
                 );
 
-        Map<Long, Long> viewsMap = statsServiceGateway.getViewsForEvents(fetchedEventIds);
+        Map<Long, Double> scoreByEventId = analyzerClient.getInteractionsCount(fetchedEventIds);
 
         List<EnrichedEventSummaryDto> events = fetchedEvents.stream()
-                .map(event -> enrichEvent(event, confirmedMap, viewsMap))
+                .map(event -> enrichEvent(
+                        event,
+                        confirmedMap,
+                        scoreByEventId)
+                )
                 .toList();
 
         return CompilationMapper.toFullDto(compilation, events);
@@ -173,7 +182,7 @@ public class CompilationService {
             Compilation compilation,
             Map<Long, EventSummaryDto> eventsById,
             Map<Long, Long> confirmedMap,
-            Map<Long, Long> viewsMap
+            Map<Long, Double> scoreByEventId
     ) {
         List<Long> eventIds = compilation.getEventIds();
 
@@ -184,7 +193,11 @@ public class CompilationService {
         List<EnrichedEventSummaryDto> events = eventIds.stream()
                 .map(eventsById::get)
                 .filter(Objects::nonNull)
-                .map(event -> enrichEvent(event, confirmedMap, viewsMap))
+                .map(event -> enrichEvent(
+                        event,
+                        confirmedMap,
+                        scoreByEventId)
+                )
                 .toList();
 
         return CompilationMapper.toFullDto(compilation, events);
@@ -193,7 +206,7 @@ public class CompilationService {
     private EnrichedEventSummaryDto enrichEvent(
             EventSummaryDto event,
             Map<Long, Long> confirmedMap,
-            Map<Long, Long> viewsMap
+            Map<Long, Double> scoreByEventId
     ) {
         Long eventId = event.getId();
 
@@ -204,7 +217,7 @@ public class CompilationService {
                 .eventDate(event.getEventDate())
                 .paid(event.getPaid())
                 .confirmedRequests(confirmedMap.getOrDefault(eventId, 0L))
-                .views(viewsMap.getOrDefault(eventId, 0L))
+                .rating(scoreByEventId.getOrDefault(eventId, 0D))
                 .build();
     }
 

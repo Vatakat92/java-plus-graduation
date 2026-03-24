@@ -2,7 +2,6 @@ package ru.practicum.controller.external;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.PositiveOrZero;
 import lombok.RequiredArgsConstructor;
@@ -11,6 +10,7 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -27,7 +27,7 @@ public class PublicEventsController {
     private final EventService eventService;
 
     @GetMapping
-    public List<EventRichShortDto> get(
+    public List<EventRichShortDto> publicSearch(
             @RequestParam(value = "text", required = false) String text,
             @RequestParam(value = "categories", required = false) List<Long> categories,
             @RequestParam(value = "paid", required = false) Boolean paid,
@@ -38,8 +38,7 @@ public class PublicEventsController {
             @RequestParam(value = "onlyAvailable", defaultValue = "false") Boolean onlyAvailable,
             @RequestParam(value = "sort", required = false) String sort,
             @RequestParam(value = "from", defaultValue = "0") @PositiveOrZero int from,
-            @RequestParam(value = "size", defaultValue = "10") @Positive int size,
-            HttpServletRequest request) {
+            @RequestParam(value = "size", defaultValue = "10") @Positive int size) {
 
         return eventService.publicSearch(
                 text,
@@ -49,20 +48,26 @@ public class PublicEventsController {
                 rangeEnd,
                 onlyAvailable,
                 sort,
-                PageRequest.ofSize(size).withPage(from / size),
-                request.getRequestURI(),
-                request.getRemoteAddr()
+                PageRequest.ofSize(size).withPage(from / size)
         );
     }
 
-    @GetMapping("/{id}")
-    public EventRichFullDto getById(@PathVariable("id") Long id,
-                                    HttpServletRequest request) {
+    @GetMapping("/{eventId}")
+    public EventRichFullDto getEventById(@PathVariable Long eventId,
+                                         @RequestHeader("X-EWM-USER-ID") Long userId) {
 
-        return eventService.getEventById(
-                id,
-                request.getRequestURI(),
-                request.getRemoteAddr()
-        );
+        return eventService.getEventById(eventId, userId);
+    }
+
+    @GetMapping("/{eventId}/like")
+    public void likeEvent(@RequestHeader("X-EWM-USER-ID") Long userId,
+                          @PathVariable Long eventId) {
+        eventService.likeEventById(userId, eventId);
+    }
+
+    @GetMapping("/recommendations")
+    public List<EventRichShortDto> getRecommendations(@RequestHeader("X-EWM-USER-ID") Long userId,
+                                                      @RequestParam(defaultValue = "10") int size) {
+        return eventService.getRecommendationsForUserId(userId, size);
     }
 }

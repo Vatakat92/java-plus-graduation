@@ -15,10 +15,12 @@ spring:
     properties:
       hibernate:
         format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
   sql:
     init:
       mode: always
   datasource:
+    driverClassName: org.postgresql.Driver
     url: jdbc:postgresql://localhost:5436/comment_db
     username: comment_service
     password: comment_password

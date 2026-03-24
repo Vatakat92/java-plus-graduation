@@ -1,0 +1,20 @@
+grpc:
+  server:
+    port: 9191
+
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: http://localhost:8761/eureka/
+  instance:
+    preferIpAddress: true
+    hostname: localhost
+    instance-id: "${spring.application.name}:${random.value}"
+    metadata-map:
+      grpcPort: ${grpc.server.port}
+
+kafka:
+  bootstrap:
+    servers: localhost:9092
+  topics:
+    stats-user-action-v1: stats.user-actions.v1

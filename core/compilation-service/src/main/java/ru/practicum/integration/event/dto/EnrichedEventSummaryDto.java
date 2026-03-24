@@ -26,6 +26,6 @@ public class EnrichedEventSummaryDto {
     private EventState state;
     private Integer participantLimit;
     private Boolean requestModeration;
-    private Long views;
+    private Double rating;
 }
 
